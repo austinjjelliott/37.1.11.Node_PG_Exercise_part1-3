@@ -3,8 +3,6 @@ const express = require("express");
 const ExpressError = require("../expressError");
 const router = express.Router();
 
-/** (Fixed) Get users: [user, user, user] */
-
 router.get("/", async function (req, res, next) {
   try {
     const results = await db.query(
@@ -19,17 +17,33 @@ router.get("/", async function (req, res, next) {
 router.get("/:code", async function (req, res, next) {
   try {
     const userQuery = await db.query(
-      "SELECT code, name, description FROM companies WHERE code = $1",
+      `SELECT companies.*, invoices.*
+      FROM companies
+      JOIN invoices ON companies.code = invoices.comp_code 
+      WHERE companies.code = $1`,
       [req.params.code]
     );
     if (userQuery.rows.length === 0) {
       let notFoundError = new Error(
-        `There is no user with code of '${req.params.code}'`
+        `There is no company with code of '${req.params.code}'`
       );
       notFoundError.status = 404;
       throw notFoundError;
     }
-    return res.json({ company: userQuery.rows[0] });
+    const data = userQuery.rows[0];
+    const companyData = {
+      code: data.code,
+      name: data.name,
+      description: data.description,
+    };
+    const invoiceData = {
+      id: data.id,
+      amount: data.amt,
+      paid: data.paid,
+      addDate: data.add_date,
+      paidDate: data.paid_date,
+    };
+    return res.json({ company: companyData, invoice: invoiceData });
   } catch (err) {
     return next(err);
   }
