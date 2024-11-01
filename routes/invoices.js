@@ -77,13 +77,12 @@ router.put("/:id", async function (req, res, next) {
     if ("id" in req.body) {
       throw new ExpressError("Not Allowed", 400);
     }
-    const result = await db.query(
+    const { amt, paid } = req.body; //grab user input
+    //Check for invoices:
+    const invoiceResult = await db.query(
       `
-        UPDATE invoices
-        SET amt = $1, paid = $2, paid_date = $3
-        WHERE id = $4
-        RETURNING id, comp_code, amt, paid, add_date, paid_date`,
-      [req.body.amt, req.body.paid, req.body.paid_date, req.params.id]
+        SELECT * FROM invoices WHERE id = $1`,
+      [req.params.id]
     );
 
     if (result.rows.length === 0) {
@@ -92,7 +91,25 @@ router.put("/:id", async function (req, res, next) {
         404
       );
     }
-    return res.json({ invoice: result.rows[0] });
+    const invoice = invoiceResult.rows[0];
+    //Determine if paid / what date:
+    let paid_date = invoice.paid_date; //This should default to current paid_date
+    if (paid) {
+      paid_date = new Date(); //This gets todays date
+    } else {
+      paid_date = null;
+    }
+    //Update the invoice and return it:
+    const updatedInvoice = await db.query(
+      `
+        UPDATE invoice
+        SET amt = $1, paid = $2, paid_date = $3
+        WHERE id = $4
+        RETURNING id, comp_code, amt, paid, add_date, paid_date`,
+      [amt, paid, paid_date, req.params.id]
+    ); //notice we didnt do req.body.whatever because we've already grabbed those and stored them as variables
+
+    return res.json({ invoice: updatedInvoice.rows[0] });
   } catch (err) {
     return next(err);
   }
